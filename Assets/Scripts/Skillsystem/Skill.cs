@@ -71,7 +71,7 @@ using System;
 
         PhysicsComponent pComp = null;
 
-        public string[] Tags = {" "};
+        public string[] Tags;
 
         public bool MovementInterruptsCasting = false;
 
@@ -618,5 +618,5 @@ using System;
             if(pComp != null)
                 pComp.Apply(check);
 		}
-	}
-
+	
+}	

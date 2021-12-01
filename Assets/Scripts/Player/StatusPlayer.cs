@@ -7,12 +7,11 @@ using System.Collections.Generic;
 public class StatusPlayer : Status
 {
 
-    private PlayerGui _PlayerGui;
+    private PlayerGuiCustom _PlayerGui;
 
     // Expirience
     public int statPoints = 0;
     public float currExp = 0;
-    public int characterId = 0;
     [HideInInspector]
     public float currExpToLevelUp = 37;
     private float additionExp = 37;
@@ -55,9 +54,8 @@ public class StatusPlayer : Status
 
     void Start()
     {
-        _PlayerGui = gameObject.GetComponent<PlayerGui>();
+        _PlayerGui = gameObject.GetComponent<PlayerGuiCustom>();
         _Animator = gameObject.GetComponent<Animator>();
-        _PlayerGui = gameObject.GetComponent<PlayerGui>();
         //        CalculateStats();
         //		currExpToLevelUp = level * additionExp;
         CalculateStats();
@@ -347,12 +345,12 @@ public class StatusPlayer : Status
                 // Skill is active, start casttime and cooldown
                 if (curSkill.executeComponentsOn == Skill.ExecuteComponentsOn.Channeled)
                 {
-                    UI.Casttimebar.ActivateChannelTime(curSkill.Duration);
+                    Casttimebar.ActivateChannelTime(curSkill.Duration);
                     lastSkill = curSkill;
                 }
                 else
                 {
-                    UI.Casttimebar.ActivateCasttime(curSkill.CastTime);
+                    Casttimebar.ActivateCasttime(curSkill.CastTime);
                 }
 
                 if (curSkill.CastTime == 0)
@@ -390,7 +388,7 @@ public class StatusPlayer : Status
     void curSkill_SkillFinished(Skill sender)
     {
         _Animator.SetFloat("UseSkill", 0f);
-        UI.Casttimebar.Abort();
+        Casttimebar.Abort();
         sender.CasttimeElapsed -= new SkillEventHandler(curSkill_CasttimeElapsed);
         sender.CasttingAborted -= new SkillEventHandler(curSkill_CasttingAborted);
         sender.SkillFinished -= new SkillEventHandler(curSkill_SkillFinished);
@@ -418,7 +416,7 @@ public class StatusPlayer : Status
 
     void curSkill_CasttingAborted(Skill sender)
     {
-        UI.Casttimebar.Abort();
+        Casttimebar.Abort();
         lastSkill = null;
         sender.SkillFinished -= new SkillEventHandler(curSkill_SkillFinished);
     }
@@ -819,6 +817,44 @@ public class StatusPlayer : Status
 
     }
 
+
+    public void LoadDataPLayer(StatusPlayerData statusData)
+    {
+        personalName = statusData.personalName;
+        locationName = statusData.locationName;
+
+        level = statusData.level;
+        strenght = statusData.strenght;
+        agility = statusData.agility;
+        vitality = statusData.vitality;
+        energy = statusData.energy;
+
+        rangeAttack = statusData.rangeAttack;
+
+        statPoints = statusData.statPoints;
+        currExp = statusData.currExp;
+        currExpToLevelUp = statusData.currExpToLevelUp;
+    }
+
+    public StatusPlayerData GgetDataPLayer()
+    {
+        StatusPlayerData result = new StatusPlayerData();
+        result.personalName = personalName;
+        result.locationName = locationName;
+
+        result.level = level;
+        result.strenght = strenght;
+        result.agility = agility;
+        result.vitality = vitality;
+        result.energy = energy;
+
+        result.rangeAttack = rangeAttack;
+
+        result.statPoints = statPoints;
+        result.currExp = currExp;
+        result.currExpToLevelUp = currExpToLevelUp;
+        return result;
+    }
 
     #region Stats Panel
     /*Specific order of elements
