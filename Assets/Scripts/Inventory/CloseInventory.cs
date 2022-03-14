@@ -1,9 +1,9 @@
 ﻿using UnityEngine;
-using System.Collections;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using System.Collections;
 
-public class CloseInventory : MonoBehaviour, IPointerDownHandler
+public class CloseInventory : MonoBehaviour, IPointerClickHandler
 {
 
     Inventory inv;
@@ -12,11 +12,12 @@ public class CloseInventory : MonoBehaviour, IPointerDownHandler
         inv = transform.parent.GetComponent<Inventory>();
 
     }
-    public void OnPointerDown(PointerEventData eventData)
+		
+	public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            inv.closeInventory();
+            inv.CloseInventory();
         }
     }
 }

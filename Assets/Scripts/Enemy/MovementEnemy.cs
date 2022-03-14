@@ -3,22 +3,20 @@ using System.Collections;
 
 public class MovementEnemy : MonoBehaviour
 {
+    public float attackRange = 1.0f;
 
 	private Ray rayMouse;
 	private RaycastHit hitObj;
-	private NavMeshAgent _NavMeshAgent;
+	private UnityEngine.AI.NavMeshAgent _NavMeshAgent;
 	private Animator _Animator;
-	private GameObject targetObj;
 
 	//[HideInInspector]
 	//public bool playerInRange = false;
 
 
 	private StatusEnemy _StatusEnemy;
-	private StatusPlayer _StatusPlayer;
 
-	private Transform colliderSightRange;
-	private SightEnemy _SightEnemy;
+	private Transform targetTransform;
 
 	//private bool playerDead = false;
 
@@ -28,13 +26,16 @@ public class MovementEnemy : MonoBehaviour
 	private int maskCombinedEnemySight = 0;
 	private bool stateSearchTarg = true;
 	private bool stateDelayOnPosition = false;
+	private bool stopUpdating = false;
 	private float timeleftSearch = 0.0f;
-	private float timeDelayOnPosition = 1.5f;
+	private float timeDelayOnPosition = 3.0f;
 	private SpawningEnemy _SpawningEnemy;
 	//private float angle;
 	//public float rotationSpeed = 5.1f;
 	//public float deadZone = 0.1f;
 
+	private enum StateEnemy{AttackTarget, SearchTarget, StayOnPosition};
+	private StateEnemy _StateEnemy = StateEnemy.SearchTarget;
 
 	public GameObject fireball;
 	private GameObject spellCastPoint;
@@ -51,14 +52,12 @@ public class MovementEnemy : MonoBehaviour
 	{
 		//spellCastPoint = transform.FindChild ("SpellCastPoint").gameObject;
 		_Animator = gameObject.GetComponent<Animator> ();
-		_NavMeshAgent = gameObject.GetComponent<NavMeshAgent> ();
+		_NavMeshAgent = gameObject.GetComponent<UnityEngine.AI.NavMeshAgent> ();
 		_StatusEnemy = gameObject.GetComponent<StatusEnemy> ();
-		colliderSightRange = gameObject.transform.FindChild ("ColliderSightRange");
-		_SightEnemy = colliderSightRange.GetComponent<SightEnemy> ();
-		_SpawningEnemy = gameObject.transform.parent.GetComponent<SpawningEnemy> ();
+		_SpawningEnemy = transform.parent.GetComponent<SpawningEnemy> ();
 		//_NavMeshAgent.updateRotation = false;
 		//_NavMeshAgent.updatePosition = false;
-		_NavMeshAgent.stoppingDistance = _StatusEnemy.rangeAttack * 0.8f;
+		_NavMeshAgent.stoppingDistance = attackRange * 0.8f;
 		//distanceToKeep = _StatusEnemy.fireCastRange - eAgent.stoppingDistance;
 		//outOfMeleeRange = ms.psSkills.meleeRange;
 
@@ -68,63 +67,72 @@ public class MovementEnemy : MonoBehaviour
 
 	}
 
+
 	// Update is called once per frame
 	void Update ()
 	{
-		if (_StatusPlayer != null && _StatusPlayer.IsDead) {
-			StopActions ();
+		if (stopUpdating)
+			return; //Stop Updating and waiting Destroy
+		
+		if (_StatusEnemy.IsDead) { //On Dead
+			_NavMeshAgent.Stop ();
+			_SpawningEnemy.enemyDie (gameObject.name);
+			stopUpdating = true;
+			return;
 		}
-		if (_SightEnemy.GetPlayerInRangeBool && _SightEnemy.GetPlayerInRangeObj != null) {
-			if (targetObj == null) {
-				targetObj = _SightEnemy.GetPlayerInRangeObj;
-				_StatusPlayer = targetObj.GetComponent<StatusPlayer> ();
+
+		switch (_StateEnemy) {
+
+		case StateEnemy.AttackTarget:
+			// If target lost or target is dead then start search new target
+			if (_StatusEnemy.TargetStatus == null || _StatusEnemy.TargetStatus.IsDead) {
+				_Animator.SetBool ("BasicAttackBool", false);
+				targetTransform = null;
+				_StateEnemy = StateEnemy.SearchTarget;
+				_NavMeshAgent.ResetPath ();
+				return;
 			}
-			stateSearchTarg = false;
-			_NavMeshAgent.SetDestination (targetObj.transform.position);
-			
-		} else if (!stateSearchTarg) {
-			StopActions ();
-		}
-
-		//UpdatePosition ();
-
-        
-		//if (_StatusEnemy.AiType == StatusEnemy.AiTypes.Melee)
-		//{
-//		if (!stateSearchTarg && DestinationReached ()) {  // && CanAttackTarget() - delete
-//			_Animator.SetBool ("BasicAttackBool", true);
-//		} else {
-//			_Animator.SetBool ("BasicAttackBool", false);
-//		}
-
-		if (_NavMeshAgent.velocity == Vector3.zero) {
-			_Animator.SetFloat ("Move", 0.0f);
-			if (stateSearchTarg) {  // && CanAttackTarget() - delete
-				if (!stateDelayOnPosition) {
-					timeleftSearch = Time.time + timeDelayOnPosition;
-					stateDelayOnPosition = true;
-				}
-			} else if (Vector3.Distance (transform.position, targetObj.transform.position) < _NavMeshAgent.stoppingDistance) {
+			//If can attack target
+			if (Vector3.Distance (transform.position, targetTransform.position) < _NavMeshAgent.stoppingDistance) {
 				LookAtTarget ();	
 				_Animator.SetBool ("BasicAttackBool", true);
-			} else {
-				_NavMeshAgent.SetDestination (targetObj.transform.position);
-			}
-			
-				
-		} else {
-			if (stateSearchTarg) {
-				stateDelayOnPosition = false;
-			} else {
+			} else { // else: target a long way then move
 				_Animator.SetBool ("BasicAttackBool", false);
+				_NavMeshAgent.SetDestination (targetTransform.position);
+			}	
+			break;
+
+		case StateEnemy.SearchTarget:
+			//If there is target
+			if (_StatusEnemy.TargetStatus != null) {
+				targetTransform = _StatusEnemy.TargetStatus.transform;
+				_StateEnemy = StateEnemy.AttackTarget;
+			} else { //else: start Stay on point
+				timeleftSearch = Time.time + timeDelayOnPosition;
+				_StateEnemy = StateEnemy.StayOnPosition;
 			}
+			break;
+		case StateEnemy.StayOnPosition:
+			//If there is target
+			if (_StatusEnemy.TargetStatus != null) {
+				targetTransform = _StatusEnemy.TargetStatus.transform;
+				_StateEnemy = StateEnemy.AttackTarget;
+			//else: if it time chenge position 
+			}else if (timeleftSearch < Time.time) {
+				_NavMeshAgent.SetDestination (_SpawningEnemy.getRandomPosition ());
+				_StateEnemy = StateEnemy.SearchTarget;
+			}
+			break;
+		}
+
+		//Chtngt animation: Stop or move
+		if (_NavMeshAgent.velocity == Vector3.zero) {
+			_Animator.SetFloat ("Move", 0.0f);
+		} else {
 			_Animator.SetFloat ("Move", 0.5f);
 		}
 
-		if (stateSearchTarg && stateDelayOnPosition && timeleftSearch < Time.time) {
-			_NavMeshAgent.SetDestination (_SpawningEnemy.getRandomPosition ());
-			stateDelayOnPosition = false;
-		}
+
 
 
 		//// here we check whether enemy has reached its NavMesh destination or not.
@@ -181,19 +189,6 @@ public class MovementEnemy : MonoBehaviour
 
 	}
 
-
-	public StatusPlayer getStatusPlayer ()
-	{
-		return _StatusPlayer;
-	}
-
-	public void StopActions ()
-	{
-		_SightEnemy.setDefaultSphreCollider ();
-		stateSearchTarg = true;
-		_NavMeshAgent.ResetPath ();
-	}
-
 	// works like LookAt function already in unity, but it is slightly smoother, refers only to XZ coordinates. It makes transform look at NavMesh point so this function should be called only when you know that there is a destination in NavMesh.
 	//	protected override void LookAtCustom ()
 	//	{
@@ -206,7 +201,7 @@ public class MovementEnemy : MonoBehaviour
 	// works like LookAt function already in unity, but it is slightly smoother. Is used to look at the player.
 	void LookAtTarget ()
 	{
-		var targetRotation = Quaternion.LookRotation (targetObj.transform.position - transform.position, Vector3.up);
+		var targetRotation = Quaternion.LookRotation (targetTransform.position - transform.position, Vector3.up);
 		transform.rotation = Quaternion.Slerp (transform.rotation, targetRotation, Time.deltaTime * _NavMeshAgent.angularSpeed);
 		transform.rotation = new Quaternion (0f, transform.rotation.y, 0f, transform.rotation.w);
 	}
@@ -223,8 +218,8 @@ public class MovementEnemy : MonoBehaviour
 	// Event functions are called by animations, check animation properities to set desired timing.
 	void EventBasicAtack ()
 	{
-		_StatusPlayer.ReceivDamage (_StatusEnemy.getAttackDamage);
-		if (_StatusPlayer.IsDead) {
+		_StatusEnemy.TargetStatus.ReceivDamage (_StatusEnemy.AttackDmg);
+		if (_StatusEnemy.TargetStatus.IsDead) {
 			_Animator.SetBool ("BasicAttackBool", false);
 		}
 	}
